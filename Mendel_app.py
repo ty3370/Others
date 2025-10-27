@@ -105,7 +105,7 @@ if st.session_state.count > 0:
                textposition='outside', marker_color="#4CAF50")
     ])
     fig1.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
-    st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
 
     # ---- 표현형 그래프 (개수 기준) ----
     st.markdown("#### 📊 표현형 그래프")
@@ -114,7 +114,7 @@ if st.session_state.count > 0:
                textposition='outside', marker_color="#AB47BC")
     ])
     fig2.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
-    st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
 
 else:
     st.info("자가수분을 실행하면 결과가 여기에 표시됩니다 🌱")
