@@ -28,13 +28,6 @@ st.markdown("""
         font-size:1.6em;
         margin:0 8px;
     }
-    .result-box {
-        background-color:#fffde7;
-        border:2px solid #fbc02d;
-        border-radius:10px;
-        padding:15px;
-        margin-top:10px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,8 +89,6 @@ with col3:
 
 # ---- 결과 ----
 if st.session_state.count > 0:
-    st.markdown("<div class='result-box'>", unsafe_allow_html=True)
-
     st.write(f"**최근 결과:** {st.session_state.last}")
     st.write(f"**누적 자가수분 횟수:** {st.session_state.count}")
 
@@ -107,30 +98,23 @@ if st.session_state.count > 0:
     st.markdown("#### 🌼 표현형 누적")
     st.text("\n".join([f"{k}: {v}" for k,v in pheno.items()]))
 
-    # ---- 비율 계산 ----
-    total_g = sum(geno.values())
-    total_p = sum(pheno.values())
-    g_ratio = [(v/total_g*100 if total_g else 0) for v in geno.values()]
-    p_ratio = [(v/total_p*100 if total_p else 0) for v in pheno.values()]
-
-    # ---- 유전자형 비율 그래프 ----
-    st.markdown("#### 📈 유전자형 비율 (%)")
+    # ---- 유전자형 그래프 (개수 기준) ----
+    st.markdown("#### 📈 유전자형 개수")
     fig1 = go.Figure(data=[
-        go.Bar(x=list(geno.keys()), y=g_ratio, text=[f"{r:.1f}%" for r in g_ratio],
+        go.Bar(x=list(geno.keys()), y=list(geno.values()), text=[str(v) for v in geno.values()],
                textposition='outside', marker_color="#4CAF50")
     ])
-    fig1.update_layout(yaxis_title="비율 (%)", height=350, margin=dict(l=10,r=10,t=40,b=20))
+    fig1.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
     st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
 
-    # ---- 표현형 비율 그래프 ----
-    st.markdown("#### 📊 표현형 비율 (%)")
+    # ---- 표현형 그래프 (개수 기준) ----
+    st.markdown("#### 📊 표현형 개수")
     fig2 = go.Figure(data=[
-        go.Bar(x=list(pheno.keys()), y=p_ratio, text=[f"{r:.1f}%" for r in p_ratio],
+        go.Bar(x=list(pheno.keys()), y=list(pheno.values()), text=[str(v) for v in pheno.values()],
                textposition='outside', marker_color="#AB47BC")
     ])
-    fig2.update_layout(yaxis_title="비율 (%)", height=350, margin=dict(l=10,r=10,t=40,b=20))
+    fig2.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
     st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
 
-    st.markdown("</div>", unsafe_allow_html=True)
 else:
     st.info("자가수분을 실행하면 결과가 여기에 표시됩니다 🌱")
