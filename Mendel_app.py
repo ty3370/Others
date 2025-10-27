@@ -99,7 +99,7 @@ if st.session_state.count > 0:
     st.text("\n".join([f"{k}: {v}" for k,v in pheno.items()]))
 
     # ---- 유전자형 그래프 (개수 기준) ----
-    st.markdown("#### 📈 유전자형 개수")
+    st.markdown("#### 📈 유전자형 그래프")
     fig1 = go.Figure(data=[
         go.Bar(x=list(geno.keys()), y=list(geno.values()), text=[str(v) for v in geno.values()],
                textposition='outside', marker_color="#4CAF50")
@@ -108,7 +108,7 @@ if st.session_state.count > 0:
     st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
 
     # ---- 표현형 그래프 (개수 기준) ----
-    st.markdown("#### 📊 표현형 개수")
+    st.markdown("#### 📊 표현형 그래프")
     fig2 = go.Figure(data=[
         go.Bar(x=list(pheno.keys()), y=list(pheno.values()), text=[str(v) for v in pheno.values()],
                textposition='outside', marker_color="#AB47BC")
