@@ -36,7 +36,7 @@ GENO2PHENO = {
 st.markdown("""
 <style>
     div[data-baseweb="tab"] > button > div[data-testid="stMarkdownContainer"] > p {
-        font-size: 2.3rem !important;
+        font-size: 12.3rem !important;
         font-weight: 700 !important;
     }
 </style>
