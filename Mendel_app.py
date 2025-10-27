@@ -77,8 +77,9 @@ with col3:
         reset()
 
 # ---- 결과 ----
-st.markdown("<div class='result-box'>", unsafe_allow_html=True)
 if st.session_state.count > 0:
+    st.markdown("<div class='result-box'>", unsafe_allow_html=True)
+
     st.write(f"**최근 결과:** {st.session_state.last}")
     st.write(f"**누적 자가수분 횟수:** {st.session_state.count}")
 
@@ -107,12 +108,11 @@ if st.session_state.count > 0:
     st.markdown("#### 📊 표현형 비율 (%)")
     fig2 = go.Figure(data=[
         go.Bar(x=list(pheno.keys()), y=p_ratio, text=[f"{r:.1f}%" for r in p_ratio],
-               textposition='outside', marker_color="#AB47BC")  # 보라색 그래프
+               textposition='outside', marker_color="#AB47BC")
     ])
     fig2.update_layout(yaxis_title="비율 (%)", height=350, margin=dict(l=10,r=10,t=40,b=20))
     st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
 
+    st.markdown("</div>", unsafe_allow_html=True)
 else:
     st.info("자가수분을 실행하면 결과가 여기에 표시됩니다 🌱")
-
-st.markdown("</div>", unsafe_allow_html=True)
