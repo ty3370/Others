@@ -32,14 +32,23 @@ GENO2PHENO = {
     'RRYy':'둥근 노란색 완두','RrYy':'둥근 노란색 완두','rrYy':'주름진 노란색 완두'
 }
 
+# ---- 탭 스타일 (탭 글씨 크게) ----
+st.markdown("""
+<style>
+    div[data-baseweb="tab"] > button > div[data-testid="stMarkdownContainer"] > p {
+        font-size: 1.3rem !important;
+        font-weight: 700 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ---- 탭 생성 ----
 tab1, tab2 = st.tabs(["🌾 분리의 법칙", "🌿 독립의 법칙"])
-
 # -----------------------------------------------
 # 🔹 분리의 법칙 탭 (Y/y 유전자만)
 # -----------------------------------------------
 with tab1:
-    st.subheader("분리의 법칙 (Y/y - 색깔만)")
+    st.subheader("분리의 법칙 (완두 색깔)")
     if "sep_geno" not in st.session_state:
         st.session_state.sep_geno = {'YY':0,'Yy':0,'yy':0}
         st.session_state.sep_pheno = {'노란색 완두':0,'녹색 완두':0}
@@ -85,15 +94,20 @@ with tab1:
         st.markdown("#### 🌼 표현형 누적")
         st.text("\n".join([f"{k}: {v}" for k,v in sep_pheno.items()]))
 
-        fig1 = go.Figure([go.Bar(x=list(sep_geno.keys()), y=list(sep_geno.values()),
-                                 text=[str(v) for v in sep_geno.values()],
-                                 textposition='outside', marker_color="#FDD835")])
+        # ✅ 색상 변경됨 (유전자형 = 초록색 / 표현형 = 보라색)
+        fig1 = go.Figure([go.Bar(
+            x=list(sep_geno.keys()), y=list(sep_geno.values()),
+            text=[str(v) for v in sep_geno.values()],
+            textposition='outside', marker_color="#4CAF50"  # 초록색
+        )])
         fig1.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
         st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
 
-        fig2 = go.Figure([go.Bar(x=list(sep_pheno.keys()), y=list(sep_pheno.values()),
-                                 text=[str(v) for v in sep_pheno.values()],
-                                 textposition='outside', marker_color="#FFCA28")])
+        fig2 = go.Figure([go.Bar(
+            x=list(sep_pheno.keys()), y=list(sep_pheno.values()),
+            text=[str(v) for v in sep_pheno.values()],
+            textposition='outside', marker_color="#AB47BC"  # 보라색
+        )])
         fig2.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
     else:
@@ -103,7 +117,7 @@ with tab1:
 # 🔹 독립의 법칙 탭 (R/r, Y/y 두 형질)
 # -----------------------------------------------
 with tab2:
-    st.subheader("독립의 법칙 (R/r, Y/y)")
+    st.subheader("독립의 법칙 (완두 모양 + 색깔)")
     if "ind_geno" not in st.session_state:
         st.session_state.ind_geno = {k:0 for k in GENO_ORDER}
         st.session_state.ind_pheno = {k:0 for k in PHENO_ORDER}
@@ -149,15 +163,19 @@ with tab2:
         st.markdown("#### 🌼 표현형 누적")
         st.text("\n".join([f"{k}: {v}" for k,v in ind_pheno.items()]))
 
-        fig1 = go.Figure([go.Bar(x=list(ind_geno.keys()), y=list(ind_geno.values()),
-                                 text=[str(v) for v in ind_geno.values()],
-                                 textposition='outside', marker_color="#4CAF50")])
+        fig1 = go.Figure([go.Bar(
+            x=list(ind_geno.keys()), y=list(ind_geno.values()),
+            text=[str(v) for v in ind_geno.values()],
+            textposition='outside', marker_color="#4CAF50"
+        )])
         fig1.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
         st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
 
-        fig2 = go.Figure([go.Bar(x=list(ind_pheno.keys()), y=list(ind_pheno.values()),
-                                 text=[str(v) for v in ind_pheno.values()],
-                                 textposition='outside', marker_color="#AB47BC")])
+        fig2 = go.Figure([go.Bar(
+            x=list(ind_pheno.keys()), y=list(ind_pheno.values()),
+            text=[str(v) for v in ind_pheno.values()],
+            textposition='outside', marker_color="#AB47BC"
+        )])
         fig2.update_layout(yaxis_title="개수", height=350, margin=dict(l=10,r=10,t=40,b=20))
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False, "staticPlot": True})
     else:
