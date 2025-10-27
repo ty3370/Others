@@ -9,13 +9,24 @@ st.set_page_config(page_title="완두 자가수분 시뮬레이터", page_icon="
 st.markdown("""
 <style>
     .stApp { background-color: #fafafa; font-family: 'Noto Sans KR', sans-serif; }
-    .title { text-align:center; font-size:2em; color:#2e7d32; font-weight:700; margin-bottom:0.2em; }
+    .title {
+        text-align:center;
+        font-size:2em;
+        color:#2e7d32;
+        font-weight:700;
+        margin-bottom:0.2em;
+    }
     .subtitle {
         text-align:center;
         color:#8e24aa; /* 보라색 */
         font-size:1.6em;
         font-weight:700;
         margin-bottom:1.5em;
+    }
+    .purple-heart {
+        color:#8e24aa;
+        font-size:1.6em;
+        margin:0 8px;
     }
     .result-box {
         background-color:#fffde7;
@@ -27,8 +38,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ---- 제목 및 학교명 ----
 st.markdown("<div class='title'>🌿 완두 자가수분 시뮬레이터</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>보라중학교</div>", unsafe_allow_html=True)
+st.markdown("""
+<div class='subtitle'>
+    <span class='purple-heart'>💜</span>
+    보라중학교
+    <span class='purple-heart'>💜</span>
+</div>
+""", unsafe_allow_html=True)
 
 # ---- 데이터 정의 ----
 GENO_ORDER = ['RRYY','RrYY','rrYY','RRyy','Rryy','rryy','RRYy','RrYy','rrYy']
