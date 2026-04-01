@@ -1,108 +1,173 @@
 import streamlit as st
-import numpy as np
-import plotly.graph_objects as go
+import streamlit.components.v1 as components
 
 # 페이지 설정
-st.set_page_config(page_title="공기 덩어리 변수 조절 시뮬레이션", layout="wide")
+st.set_page_config(page_title="P5.js Adiabatic Simulation", layout="wide")
 
-st.title("공기 덩어리 단열 변화 시뮬레이션")
+# 사이드바에서 변수 조절
+st.sidebar.header("🕹️ 제어 파라미터")
+s_gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, 0.01)
+s_temp = st.sidebar.slider("지표면 기온 (K)", 250.0, 320.0, 288.15, 0.1)
+s_press = st.sidebar.slider("지표면 기압 (kPa)", 80.0, 120.0, 101.3, 0.1)
+s_lapse = st.sidebar.slider("기온 감률 (Lapse Rate)", 0.001, 0.01, 0.0065, 0.0001, format="%.4f")
 
-# --- 사이드바: 사용자 조절 변수 설정 ---
-st.sidebar.header("🛠️ 물리 변수 설정")
+# JavaScript(p5.js) 코드 구성
+# Streamlit의 변수를 f-string을 통해 JS 변수로 전달합니다.
+p5_code = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {{ margin: 0; padding: 0; overflow: hidden; }}
+        canvas {{ display: block; }}
+    </style>
+</head>
+<body>
+<script>
+let gamma = {s_gamma};
+let initialTemperatureGround = {s_temp};
+let initialPressureGround = {s_press};
+let lapseRate = {s_lapse};
 
-# 1. 고도 (기존)
-altitude = st.sidebar.slider("현재 고도 (m)", 0, 10000, 0, step=100)
+let R_specific = 287.05;
+let g = 9.81;
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("환경 변수 설정")
+let currentAltitude;
+let currentPressureAmbient;
+let currentTemperatureAmbient;
+let currentVolumeAirParcel;
+let currentTemperatureAirParcel;
 
-# 2. 지표면 초기 기온 (섭씨로 입력받아 켈빈으로 변환)
-temp_ground_c = st.sidebar.slider("지표면 기온 (°C)", -20.0, 50.0, 15.0)
-initial_temp_ground = temp_ground_c + 273.15
+let minAltitude = 0;
+let maxAltitude = 10000;
 
-# 3. 지표면 초기 기압
-initial_press_ground = st.sidebar.number_input("지표면 기압 (kPa)", value=101.3)
+let airParcelMass = 1;
 
-# 4. 기온 감률 (Lapse Rate) - 기본값 0.0065 K/m
-lapse_rate = st.sidebar.slider("기온 감률 (K/m)", 0.001, 0.010, 0.0065, step=0.0001, format="%.4f")
+let minVolumeAtGround;
+let maxVolumeAtAltitude;
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("공기 덩어리 속성")
+function setup() {{
+  // Streamlit iframe 크기에 맞춰 캔버스 생성
+  createCanvas(window.innerWidth, window.innerHeight);
 
-# 5. 단열 지수 (Gamma) - 공기는 보통 1.4
-gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, step=0.05)
+  let tempAtGround = initialTemperatureGround;
+  let pressureAtGround = initialPressureGround;
+  minVolumeAtGround = airParcelMass * R_specific * tempAtGround / (pressureAtGround * 1000);
 
-# 6. 공기 덩어리 질량
-air_parcel_mass = st.sidebar.number_input("공기 질량 (kg)", value=1.0)
+  let tempAmbientAtMaxAlt = initialTemperatureGround - lapseRate * maxAltitude;
+  let pressureAmbientAtMaxAlt = initialPressureGround * pow(1 - (lapseRate * maxAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
+  let tempAirParcelAtMaxAlt = initialTemperatureGround * pow(pressureAmbientAtMaxAlt / initialPressureGround, (gamma - 1) / gamma);
+  maxVolumeAtAltitude = airParcelMass * R_specific * tempAirParcelAtMaxAlt / (pressureAmbientAtMaxAlt * 1000);
 
-# --- 고정 상수 ---
-R_specific = 287.05           # J/kg·K
-g = 9.81                      # m/s²
+  textAlign(LEFT, CENTER);
+  textSize(14);
+}}
 
-# --- 물리량 계산 로직 ---
+function draw() {{
+  background(173, 216, 230);
 
-# 1. 주변 기온
-temp_ambient = initial_temp_ground - lapse_rate * altitude
+  let groundY = height - 50;
+  let airParcelX = width / 2;
 
-# 2. 주변 기압 (기압 공식)
-# 분모가 0이 되는 것을 방지하기 위해 lapse_rate가 0일 때 처리가 필요할 수 있으나 슬라이더 범위를 0.001로 제한함
-press_ambient = initial_press_ground * (1 - (lapse_rate * altitude) / initial_temp_ground) ** (g / (R_specific * lapse_rate))
+  let mouseYConstrained = constrain(mouseY, 50, groundY - 50);
+  currentAltitude = map(mouseYConstrained, groundY - 50, 50, minAltitude, maxAltitude);
 
-# 3. 공기 덩어리 내부 온도 (단열 변화 과정)
-if altitude == 0:
-    temp_parcel = initial_temp_ground
-else:
-    # Poisson's Equation: T2 = T1 * (P2/P1)^((gamma-1)/gamma)
-    temp_parcel = initial_temp_ground * (press_ambient / initial_press_ground) ** ((gamma - 1) / gamma)
+  currentTemperatureAmbient = initialTemperatureGround - lapseRate * currentAltitude;
+  currentPressureAmbient = initialPressureGround * pow(1 - (lapseRate * currentAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
 
-# 4. 공기 덩어리 부피 (V = mRT/P)
-volume_parcel = (air_parcel_mass * R_specific * temp_parcel) / (press_ambient * 1000)
+  if (currentAltitude === 0) {{
+    currentTemperatureAirParcel = initialTemperatureGround;
+  }} else {{
+    currentTemperatureAirParcel = initialTemperatureGround * pow(currentPressureAmbient / initialPressureGround, (gamma - 1) / gamma);
+  }}
 
-# --- 시각화를 위한 크기 매핑 ---
-# 최소/최대 부피를 대략적으로 계산하여 원의 크기 결정
-min_vol = (air_parcel_mass * R_specific * 253.15) / (101.3 * 1000) # 대략적인 최소값
-max_vol = (air_parcel_mass * R_specific * 323.15) / (20.0 * 1000)  # 대략적인 최대값
-display_size = np.interp(volume_parcel, [min_vol, max_vol], [50, 300])
+  currentVolumeAirParcel = airParcelMass * R_specific * currentTemperatureAirParcel / (currentPressureAmbient * 1000);
 
-# --- 화면 레이아웃 구성 ---
-col1, col2 = st.columns([1, 2])
+  let rawRadiusFactor = sqrt(currentVolumeAirParcel / PI);
+  let minRawRadiusFactor = sqrt(minVolumeAtGround / PI);
+  let maxRawRadiusFactor = sqrt(maxVolumeAtAltitude / PI);
+  
+  let displayRadius = map(rawRadiusFactor, minRawRadiusFactor, maxRawRadiusFactor, 40, 100);
+  displayRadius = constrain(displayRadius, 40, 120);
 
-with col1:
-    st.subheader("📊 실시간 데이터")
-    st.metric("현재 고도", f"{altitude} m")
-    st.metric("주변 기압", f"{press_ambient * 10:.1f} hPa")
-    st.metric("주변 기온", f"{temp_ambient - 273.15:.1f} °C")
-    st.metric("공기 덩어리 온도", f"{temp_parcel - 273.15:.1f} °C", 
-              delta=f"{(temp_parcel - temp_ambient):.1f} °C (주변대비)", delta_color="inverse")
-    st.metric("공기 덩어리 부피", f"{volume_parcel:.3f} m³")
+  fill(255, 255, 255, 180);
+  noStroke();
+  ellipse(airParcelX, mouseYConstrained, displayRadius * 2, displayRadius * 2);
 
-with col2:
-    fig = go.Figure()
+  let externalArrowLength = map(currentPressureAmbient, 0, initialPressureGround * 1.2, 5, 40);
+  let internalArrowConstantLength = 30;
 
-    # 공기 덩어리 시각화
-    fig.add_trace(go.Scatter(
-        x=[0], y=[altitude],
-        mode="markers",
-        marker=dict(
-            size=display_size,
-            color='rgba(255, 255, 255, 0.8)',
-            line=dict(width=3, color='RoyalBlue'),
-            symbol="circle"
-        )
-    ))
+  let numArrows = 8;
+  let arrowAngleStep = TWO_PI / numArrows;
+  let arrowHeadSize = 5;
 
-    fig.update_layout(
-        xaxis=dict(range=[-1, 1], showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(range=[-500, 11000], title="고도 (m)", gridcolor='lightgray'),
-        plot_bgcolor='rgb(173, 216, 230)',
-        height=700,
-        showlegend=False,
-        title="고도에 따른 공기 덩어리 상태"
-    )
+  push();
+  translate(airParcelX, mouseYConstrained);
+  stroke(50, 50, 50);
+  strokeWeight(2);
 
-    # 지면 표시
-    fig.add_shape(type="rect", x0=-1, y0=-500, x1=1, y1=0, fillcolor="sienna", opacity=0.3)
+  for (let i = 0; i < numArrows; i++) {{
+    let angle = i * arrowAngleStep;
 
-    st.plotly_chart(fig, use_container_width=True)
+    let externalStartX = (displayRadius + externalArrowLength) * cos(angle);
+    let externalStartY = (displayRadius + externalArrowLength) * sin(angle);
+    let externalEndX = displayRadius * cos(angle);
+    let externalEndY = displayRadius * sin(angle);
+    line(externalStartX, externalStartY, externalEndX, externalEndY);
 
-st.success("💡 **실험 팁:** 감률(Lapse Rate)을 높이면 주변 공기가 고도에 따라 더 빨리 차가워집니다. 단열 지수(Gamma)를 바꾸면 공기 덩어리의 팽창 효율이 달라집니다.")
+    push();
+    translate(externalEndX, externalEndY);
+    rotate(angle + PI);
+    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
+    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
+    pop();
+
+    let internalStartX = (displayRadius - internalArrowConstantLength) * cos(angle);
+    let internalStartY = (displayRadius - internalArrowConstantLength) * sin(angle);
+    let internalEndX = displayRadius * cos(angle);
+    let internalEndY = displayRadius * sin(angle);
+    line(internalStartX, internalStartY, internalEndX, internalEndY);
+
+    push();
+    translate(internalEndX, internalEndY);
+    rotate(angle);
+    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
+    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
+    pop();
+  }}
+  pop();
+
+  fill(0);
+  noStroke();
+  text("Altitude: " + nf(currentAltitude, 0, 0) + " m", 30, 40);
+  text("Ambient Pressure: " + nf(currentPressureAmbient * 10, 0, 1) + " hPa", 30, 65);
+  text("Air Parcel Volume: " + nf(currentVolumeAirParcel, 0, 2) + " m³", 30, 90);
+  text("Air Parcel Temp: " + nf(currentTemperatureAirParcel - 273.15, 0, 1) + " °C", 30, 115);
+  text("마우스를 위아래로 움직여 고도를 조절하세요.", 30, 145);
+
+  stroke(0);
+  strokeWeight(3);
+  line(0, groundY, width, groundY);
+  noStroke();
+  fill(0);
+  text("Ground Level", width - 120, groundY - 15);
+}}
+
+function windowResized() {{
+  resizeCanvas(window.innerWidth, window.innerHeight);
+}}
+</script>
+</body>
+</html>
+"""
+
+# Streamlit 화면에 HTML/JS 렌더링
+components.html(p5_code, height=600)
+
+st.markdown("""
+### 💡 사용 방법
+1. 왼쪽 사이드바의 **슬라이더**를 조절하여 물리 환경(단열 지수, 기온 등)을 설정합니다.
+2. 메인 화면의 하늘색 영역에서 **마우스를 위아래로 움직이면** 공기 덩어리의 고도가 실시간으로 변합니다.
+3. 고도에 따른 공기 덩어리의 부피 팽창과 압력 화살표의 변화를 관찰하세요.
+""")
