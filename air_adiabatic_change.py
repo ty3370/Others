@@ -53,7 +53,9 @@ function draw() {{
   let groundY = height - 50;
   let airParcelX = width / 2;
 
-  let mouseYConstrained = constrain(mouseY, 50, groundY - 50);
+  // 터치 입력 대응: 터치 중이면 터치 좌표를, 아니면 마우스 좌표를 사용
+  let inputY = (touches.length > 0) ? touches[0].y : mouseY;
+  let mouseYConstrained = constrain(inputY, 50, groundY - 50);
   currentAltitude = map(mouseYConstrained, groundY - 50, 50, minAltitude, maxAltitude);
 
   // 1. 기온 감률이 반영된 대기압 계산 (Barometric formula)
@@ -139,6 +141,11 @@ function draw() {{
   noStroke();
   fill(0);
   text("Ground Level", width - 120, groundY - 15);
+}}
+
+// 모바일 스크롤 방지
+function touchMoved() {{
+  return false;
 }}
 
 function windowResized() {{
