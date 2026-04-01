@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="공기의 단열 팽창 시뮬레이션", layout="wide")
 
 # 사이드바에서 변수 조절
-st.sidebar.header("🕹️ 제어 파라미터")
+st.sidebar.header("🕹️ 제어 패러미터")
 s_gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, 0.01)
 s_temp = st.sidebar.slider("지표면 기온 (K)", 250.0, 320.0, 288.15, 0.1)
 s_press = st.sidebar.slider("지표면 기압 (kPa)", 80.0, 120.0, 101.3, 0.1)
