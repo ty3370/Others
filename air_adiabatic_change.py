@@ -40,7 +40,6 @@ let currentTemperatureAirParcel;
 
 let minAltitude = 0;
 let maxAltitude = 10000;
-
 let airParcelMass = 1;
 
 let minVolumeAtGround;
@@ -71,15 +70,16 @@ function draw() {{
   let mouseYConstrained = constrain(mouseY, 50, groundY - 50);
   currentAltitude = map(mouseYConstrained, groundY - 50, 50, minAltitude, maxAltitude);
 
+  // 외부 환경 계산
   currentTemperatureAmbient = initialTemperatureGround - lapseRate * currentAltitude;
   currentPressureAmbient = initialPressureGround * pow(1 - (lapseRate * currentAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
 
+  // 공기 덩어리 상태 계산
   if (currentAltitude === 0) {{
     currentTemperatureAirParcel = initialTemperatureGround;
   }} else {{
     currentTemperatureAirParcel = initialTemperatureGround * pow(currentPressureAmbient / initialPressureGround, (gamma - 1) / gamma);
   }}
-
   currentVolumeAirParcel = airParcelMass * R_specific * currentTemperatureAirParcel / (currentPressureAmbient * 1000);
 
   let rawRadiusFactor = sqrt(currentVolumeAirParcel / PI);
@@ -93,13 +93,16 @@ function draw() {{
   noStroke();
   ellipse(airParcelX, mouseYConstrained, displayRadius * 2, displayRadius * 2);
 
-  // --- 원래 코드의 화살표 로직 유지 및 패러미터 반영 ---
-  // 외부 압력 화살표 길이 (Ambient Pressure에 비례)
+  // --- 화살표 로직 (비평형 유지하며 패러미터 반영) ---
+  
+  // 1. 외부 압력 화살표 (기존 형식 유지)
   let externalArrowLength = map(currentPressureAmbient, 0, initialPressureGround * 1.2, 5, 40);
   
-  // 내부 압력 화살표 길이 (기존 고정값 30에서 내부 압력 수치 반영으로 수정)
-  // 내부 압력 수치는 단열 관계식에 의해 변화함
-  let internalArrowLength = map(currentPressureAmbient, 0, initialPressureGround * 1.2, 5, 40);
+  // 2. 내부 압력 화살표 (원래의 '30'을 기준으로 하되 패러미터의 영향을 받음)
+  // 단열 지수(gamma)가 높거나 기온(temp)이 높으면 팽창하려는 '내부 힘'이 강하게 표현되도록 설정
+  // 하지만 외부 화살표와 계산식을 달리하여 의도적인 '비평형'을 시각화함
+  let internalForceBase = (initialPressureGround / 101.3) * (initialTemperatureGround / 288.15) * 30;
+  let internalArrowLength = internalForceBase * pow(currentVolumeAirParcel / minVolumeAtGround, -0.2); 
 
   let numArrows = 8;
   let arrowAngleStep = TWO_PI / numArrows;
@@ -113,7 +116,7 @@ function draw() {{
   for (let i = 0; i < numArrows; i++) {{
     let angle = i * arrowAngleStep;
 
-    // 원래 코드의 외부 화살표 그리기 형식
+    // 외부 화살표 (원래 형식)
     let externalStartX = (displayRadius + externalArrowLength) * cos(angle);
     let externalStartY = (displayRadius + externalArrowLength) * sin(angle);
     let externalEndX = displayRadius * cos(angle);
@@ -127,7 +130,7 @@ function draw() {{
     line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
     pop();
 
-    // 원래 코드의 내부 화살표 그리기 형식 (길이만 가변으로 변경)
+    // 내부 화살표 (원래 형식, 길이는 위에서 계산한 비평형 internalArrowLength 사용)
     let internalStartX = (displayRadius - internalArrowLength) * cos(angle);
     let internalStartY = (displayRadius - internalArrowLength) * sin(angle);
     let internalEndX = displayRadius * cos(angle);
@@ -143,13 +146,13 @@ function draw() {{
   }}
   pop();
 
+  // 텍스트 정보
   fill(0);
   noStroke();
   text("Altitude: " + nf(currentAltitude, 0, 0) + " m", 30, 40);
   text("Ambient Pressure: " + nf(currentPressureAmbient * 10, 0, 1) + " hPa", 30, 65);
   text("Air Parcel Volume: " + nf(currentVolumeAirParcel, 0, 2) + " m³", 30, 90);
   text("Air Parcel Temp: " + nf(currentTemperatureAirParcel - 273.15, 0, 1) + " °C", 30, 115);
-  text("마우스를 위아래로 움직여 고도를 조절하세요.", 30, 145);
 
   stroke(0);
   strokeWeight(3);
@@ -171,8 +174,9 @@ function windowResized() {{
 components.html(p5_code, height=600)
 
 st.markdown("""
-### 💡 수정 포인트
-- **구조 유지**: 원래 코드의 `external`과 `internal` 화살표를 그리는 독립적인 `for` 루프와 `push/pop` 구조를 그대로 유지했습니다.
-- **내부 압력 반영**: 기존에 `30`으로 고정되어 있던 `internalArrowConstantLength`를 `internalArrowLength`라는 가변 변수로 바꾸어, 슬라이더로 조절한 패러미터들이 공기 내부 압력(화살표 길이)에 미치는 영향을 볼 수 있게 했습니다.
-- **디자인 복구**: 임의로 넣었던 색상이나 모양 변화를 제거하고 원래의 단색 선 형식을 사용합니다.
+---
+### 🛠️ 수정 핵심 (교육적 비평형 유지)
+* **외부 화살표**: 고도 상승에 따라 외부 기압이 낮아지면 **실시간으로 짧아집니다.** (지표 기압과 감률의 영향)
+* **내부 화살표**: 기존의 고정값(`30`) 개념을 유지하되, **지표 기온과 기압 설정값**에 따라 기본 길이가 달라집니다. 또한 상승 시 외부 압력보다 **천천히 변하게 설계**하여, 둘 사이의 '길이 차이(압력차)'가 공기를 팽창시키는 동력임을 시각적으로 보여줍니다.
+* **단열 지수($\gamma$)**: 이 값이 변하면 내부 온도와 부피가 변하며, 이에 따라 내부 화살표의 반응 속도가 미세하게 달라집니다.
 """)
