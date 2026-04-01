@@ -1,144 +1,173 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. 페이지 설정
-st.set_page_config(page_title="Adiabatic Simulation", layout="wide")
+# 페이지 설정
+st.set_page_config(page_title="P5.js Adiabatic Simulation", layout="wide")
 
-st.title("🌪️ 단열 변화 인터랙티브 시뮬레이터")
-
-# 2. 사이드바 설정 (사용자 조절 변수)
-st.sidebar.header("⚙️ 환경 변수 조절")
+# 사이드바에서 변수 조절
+st.sidebar.header("🕹️ 제어 파라미터")
 s_gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, 0.01)
-s_temp_g = st.sidebar.slider("지표면 기온 (K)", 200.0, 400.0, 288.15, 0.1)
-s_press_g = st.sidebar.slider("지표면 기압 (kPa)", 50.0, 150.0, 101.3, 0.1)
-s_lapse = st.sidebar.slider("기온 감률 (K/m)", 0.001, 0.02, 0.0065, 0.0001, format="%.4f")
-s_mass = st.sidebar.number_input("공기 질량 (kg)", value=1.0, step=0.1)
+s_temp = st.sidebar.slider("지표면 기온 (K)", 250.0, 320.0, 288.15, 0.1)
+s_press = st.sidebar.slider("지표면 기압 (kPa)", 80.0, 120.0, 101.3, 0.1)
+s_lapse = st.sidebar.slider("기온 감률 (Lapse Rate)", 0.001, 0.01, 0.0065, 0.0001, format="%.4f")
 
-# 3. p5.js 소스 코드 템플릿
-# f-string 대신 치환 방식을 사용하여 문법 에러를 원천 차단합니다.
-html_template = """
+# JavaScript(p5.js) 코드 구성
+# Streamlit의 변수를 f-string을 통해 JS 변수로 전달합니다.
+p5_code = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #add8e6; }
-        canvas { display: block; }
+        body {{ margin: 0; padding: 0; overflow: hidden; }}
+        canvas {{ display: block; }}
     </style>
 </head>
 <body>
 <script>
-const GAMMA = __GAMMA__;
-const T0 = __T0__;
-const P0 = __P0__;
-const LAPSE = __LAPSE__;
-const MASS = __MASS__;
+let gamma = {s_gamma};
+let initialTemperatureGround = {s_temp};
+let initialPressureGround = {s_press};
+let lapseRate = {s_lapse};
 
-const R_SPECIFIC = 287.05;
-const G = 9.81;
-const MAX_ALT = 10000;
+let R_specific = 287.05;
+let g = 9.81;
 
-function setup() {
+let currentAltitude;
+let currentPressureAmbient;
+let currentTemperatureAmbient;
+let currentVolumeAirParcel;
+let currentTemperatureAirParcel;
+
+let minAltitude = 0;
+let maxAltitude = 10000;
+
+let airParcelMass = 1;
+
+let minVolumeAtGround;
+let maxVolumeAtAltitude;
+
+function setup() {{
+  // Streamlit iframe 크기에 맞춰 캔버스 생성
   createCanvas(window.innerWidth, window.innerHeight);
-  textAlign(LEFT, CENTER);
-}
 
-function draw() {
+  let tempAtGround = initialTemperatureGround;
+  let pressureAtGround = initialPressureGround;
+  minVolumeAtGround = airParcelMass * R_specific * tempAtGround / (pressureAtGround * 1000);
+
+  let tempAmbientAtMaxAlt = initialTemperatureGround - lapseRate * maxAltitude;
+  let pressureAmbientAtMaxAlt = initialPressureGround * pow(1 - (lapseRate * maxAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
+  let tempAirParcelAtMaxAlt = initialTemperatureGround * pow(pressureAmbientAtMaxAlt / initialPressureGround, (gamma - 1) / gamma);
+  maxVolumeAtAltitude = airParcelMass * R_specific * tempAirParcelAtMaxAlt / (pressureAmbientAtMaxAlt * 1000);
+
+  textAlign(LEFT, CENTER);
+  textSize(14);
+}}
+
+function draw() {{
   background(173, 216, 230);
 
-  let groundY = height - 60;
-  let centerX = width / 2;
+  let groundY = height - 50;
+  let airParcelX = width / 2;
 
-  let mY = constrain(mouseY, 50, groundY - 50);
-  let alt = map(mY, groundY - 50, 50, 0, MAX_ALT);
+  let mouseYConstrained = constrain(mouseY, 50, groundY - 50);
+  currentAltitude = map(mouseYConstrained, groundY - 50, 50, minAltitude, maxAltitude);
 
-  // --- 물리 계산 ---
-  // 주변 기압
-  let pAmb = P0 * pow(1 - (LAPSE * alt) / T0, G / (R_SPECIFIC * LAPSE));
-  // 공기 덩어리 온도 (단열 과정)
-  let tParcel = T0 * pow(pAmb / P0, (GAMMA - 1) / GAMMA);
-  // 부피 계산
-  let volParcel = (MASS * R_SPECIFIC * tParcel) / (pAmb * 1000);
+  currentTemperatureAmbient = initialTemperatureGround - lapseRate * currentAltitude;
+  currentPressureAmbient = initialPressureGround * pow(1 - (lapseRate * currentAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
 
-  // 반지름 시각화 (변화가 잘 보이도록 스케일링 강화)
-  let r = map(sqrt(volParcel), 0.1, 1.5, 30, 220);
+  if (currentAltitude === 0) {{
+    currentTemperatureAirParcel = initialTemperatureGround;
+  }} else {{
+    currentTemperatureAirParcel = initialTemperatureGround * pow(currentPressureAmbient / initialPressureGround, (gamma - 1) / gamma);
+  }}
 
-  // 공기 덩어리 본체
-  fill(255, 255, 255, 200);
-  stroke(255);
-  strokeWeight(2);
-  ellipse(centerX, mY, r * 2, r * 2);
+  currentVolumeAirParcel = airParcelMass * R_specific * currentTemperatureAirParcel / (currentPressureAmbient * 1000);
 
-  // --- 화살표 그리기 (내부/외부 모두 포함) ---
-  let num = 8;
-  let extLen = map(pAmb, 50, 150, 10, 80); 
+  let rawRadiusFactor = sqrt(currentVolumeAirParcel / PI);
+  let minRawRadiusFactor = sqrt(minVolumeAtGround / PI);
+  let maxRawRadiusFactor = sqrt(maxVolumeAtAltitude / PI);
   
-  for (let i = 0; i < num; i++) {
-    let angle = i * (TWO_PI / num);
-    
-    // 1. 외부 압력 (파란색, 안으로)
-    stroke(0, 80, 220);
-    strokeWeight(2);
-    let x1_ext = centerX + (r + extLen) * cos(angle);
-    let y1_ext = mY + (r + extLen) * sin(angle);
-    let x2_ext = centerX + r * cos(angle);
-    let y2_ext = mY + r * sin(angle);
-    line(x1_ext, y1_ext, x2_ext, y2_ext);
-    
+  let displayRadius = map(rawRadiusFactor, minRawRadiusFactor, maxRawRadiusFactor, 40, 100);
+  displayRadius = constrain(displayRadius, 40, 120);
+
+  fill(255, 255, 255, 180);
+  noStroke();
+  ellipse(airParcelX, mouseYConstrained, displayRadius * 2, displayRadius * 2);
+
+  let externalArrowLength = map(currentPressureAmbient, 0, initialPressureGround * 1.2, 5, 40);
+  let internalArrowConstantLength = 30;
+
+  let numArrows = 8;
+  let arrowAngleStep = TWO_PI / numArrows;
+  let arrowHeadSize = 5;
+
+  push();
+  translate(airParcelX, mouseYConstrained);
+  stroke(50, 50, 50);
+  strokeWeight(2);
+
+  for (let i = 0; i < numArrows; i++) {{
+    let angle = i * arrowAngleStep;
+
+    let externalStartX = (displayRadius + externalArrowLength) * cos(angle);
+    let externalStartY = (displayRadius + externalArrowLength) * sin(angle);
+    let externalEndX = displayRadius * cos(angle);
+    let externalEndY = displayRadius * sin(angle);
+    line(externalStartX, externalStartY, externalEndX, externalEndY);
+
     push();
-    translate(x2_ext, y2_ext);
+    translate(externalEndX, externalEndY);
     rotate(angle + PI);
-    line(0, 0, -7, -4);
-    line(0, 0, -7, 4);
+    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
+    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
     pop();
 
-    // 2. 내부 팽창력 (주황색, 밖으로)
-    stroke(255, 80, 0);
-    let intLen = 35; 
-    let x1_int = centerX + (r - intLen) * cos(angle);
-    let y1_int = mY + (r - intLen) * sin(angle);
-    let x2_int = centerX + r * cos(angle);
-    let y2_int = mY + r * sin(angle);
-    line(x1_int, y1_int, x2_int, y2_int);
+    let internalStartX = (displayRadius - internalArrowConstantLength) * cos(angle);
+    let internalStartY = (displayRadius - internalArrowConstantLength) * sin(angle);
+    let internalEndX = displayRadius * cos(angle);
+    let internalEndY = displayRadius * sin(angle);
+    line(internalStartX, internalStartY, internalEndX, internalEndY);
 
     push();
-    translate(x2_int, y2_int);
+    translate(internalEndX, internalEndY);
     rotate(angle);
-    line(0, 0, -7, -4);
-    line(0, 0, -7, 4);
+    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
+    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
     pop();
-  }
+  }}
+  pop();
 
-  // --- 데이터 표시 ---
+  fill(0);
+  noStroke();
+  text("Altitude: " + nf(currentAltitude, 0, 0) + " m", 30, 40);
+  text("Ambient Pressure: " + nf(currentPressureAmbient * 10, 0, 1) + " hPa", 30, 65);
+  text("Air Parcel Volume: " + nf(currentVolumeAirParcel, 0, 2) + " m³", 30, 90);
+  text("Air Parcel Temp: " + nf(currentTemperatureAirParcel - 273.15, 0, 1) + " °C", 30, 115);
+  text("마우스를 위아래로 움직여 고도를 조절하세요.", 30, 145);
+
+  stroke(0);
+  strokeWeight(3);
+  line(0, groundY, width, groundY);
   noStroke();
   fill(0);
-  textSize(16);
-  text("📏 Altitude: " + nf(alt, 0, 0) + " m", 25, 40);
-  text("☁️ Ambient Pressure: " + nf(pAmb * 10, 0, 1) + " hPa", 25, 65);
-  text("📦 Parcel Volume: " + nf(volParcel, 0, 4) + " m³", 25, 90);
-  text("🌡️ Parcel Temp: " + nf(tParcel - 273.15, 0, 1) + " °C", 25, 115);
+  text("Ground Level", width - 120, groundY - 15);
+}}
 
-  // 지면 표시
-  stroke(100, 60, 30);
-  strokeWeight(6);
-  line(0, groundY, width, groundY);
-}
-
-function windowResized() {
+function windowResized() {{
   resizeCanvas(window.innerWidth, window.innerHeight);
-}
+}}
 </script>
 </body>
 </html>
 """
 
-# 4. 값 치환 및 컴포넌트 실행
-p5_code = html_template.replace("__GAMMA__", str(s_gamma)) \
-                       .replace("__T0__", str(s_temp_g)) \
-                       .replace("__P0__", str(s_press_g)) \
-                       .replace("__LAPSE__", str(s_lapse)) \
-                       .replace("__MASS__", str(s_mass))
+# Streamlit 화면에 HTML/JS 렌더링
+components.html(p5_code, height=600)
 
-# key값에 해시를 사용하여 TypeError를 방지하면서도 리프레시를 보장합니다.
-comp_key = hash((s_gamma, s_temp_g, s_press_g, s_lapse, s_mass))
-components.html(p5_code, height=750, key=str(comp_key))
+st.markdown("""
+### 💡 사용 방법
+1. 왼쪽 사이드바의 **슬라이더**를 조절하여 물리 환경(단열 지수, 기온 등)을 설정합니다.
+2. 메인 화면의 하늘색 영역에서 **마우스를 위아래로 움직이면** 공기 덩어리의 고도가 실시간으로 변합니다.
+3. 고도에 따른 공기 덩어리의 부피 팽창과 압력 화살표의 변화를 관찰하세요.
+""")
