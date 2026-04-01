@@ -2,17 +2,18 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # 페이지 설정
-st.set_page_config(page_title="P5.js Adiabatic Simulation", layout="wide")
+st.set_page_config(page_title="공기의 단열 팽창 시뮬레이터", layout="wide")
 
 # 사이드바에서 변수 조절
-st.sidebar.header("🕹️ 제어 파라미터")
-s_gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, 0.01)
-s_temp = st.sidebar.slider("지표면 기온 (K)", 250.0, 320.0, 288.15, 0.1)
-s_press = st.sidebar.slider("지표면 기압 (kPa)", 80.0, 120.0, 101.3, 0.1)
-s_lapse = st.sidebar.slider("기온 감률 (Lapse Rate)", 0.001, 0.01, 0.0065, 0.0001, format="%.4f")
+st.sidebar.header("🕹️ 물리 제어 파라미터")
+st.sidebar.markdown("각 수치가 공기의 상태에 미치는 영향을 관찰하세요.")
+
+s_gamma = st.sidebar.slider("단열 지수 (Gamma)", 1.1, 1.7, 1.4, 0.01, help="값이 클수록 기온 하강이 빠르고 팽창 폭이 줄어듭니다.")
+s_temp = st.sidebar.slider("지표면 기온 (K)", 250.0, 320.0, 288.15, 0.1, help="초기 부피(크기)를 결정합니다.")
+s_press = st.sidebar.slider("지표면 기압 (kPa)", 80.0, 120.0, 101.3, 0.1, help="외부 압력의 시작점과 초기 압축도를 결정합니다.")
+s_lapse = st.sidebar.slider("기온 감률 (Lapse Rate)", 0.001, 0.01, 0.0065, 0.0001, format="%.4f", help="값이 클수록 고도에 따른 외부 압력이 급격히 낮아집니다.")
 
 # JavaScript(p5.js) 코드 구성
-# Streamlit의 변수를 f-string을 통해 JS 변수로 전달합니다.
 p5_code = f"""
 <!DOCTYPE html>
 <html>
@@ -26,132 +27,109 @@ p5_code = f"""
 <body>
 <script>
 let gamma = {s_gamma};
-let initialTemperatureGround = {s_temp};
-let initialPressureGround = {s_press};
+let initialT0 = {s_temp};
+let initialP0 = {s_press};
 let lapseRate = {s_lapse};
 
 let R_specific = 287.05;
 let g = 9.81;
 
-let currentAltitude;
-let currentPressureAmbient;
-let currentTemperatureAmbient;
-let currentVolumeAirParcel;
-let currentTemperatureAirParcel;
-
-let minAltitude = 0;
-let maxAltitude = 10000;
-
-let airParcelMass = 1;
-
-let minVolumeAtGround;
-let maxVolumeAtAltitude;
+let currentAlt, currentP_amb, currentT_amb, currentV_parcel, currentT_parcel;
+let minAlt = 0, maxAlt = 10000;
+let airMass = 1.0;
 
 function setup() {{
-  // Streamlit iframe 크기에 맞춰 캔버스 생성
   createCanvas(window.innerWidth, window.innerHeight);
-
-  let tempAtGround = initialTemperatureGround;
-  let pressureAtGround = initialPressureGround;
-  minVolumeAtGround = airParcelMass * R_specific * tempAtGround / (pressureAtGround * 1000);
-
-  let tempAmbientAtMaxAlt = initialTemperatureGround - lapseRate * maxAltitude;
-  let pressureAmbientAtMaxAlt = initialPressureGround * pow(1 - (lapseRate * maxAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
-  let tempAirParcelAtMaxAlt = initialTemperatureGround * pow(pressureAmbientAtMaxAlt / initialPressureGround, (gamma - 1) / gamma);
-  maxVolumeAtAltitude = airParcelMass * R_specific * tempAirParcelAtMaxAlt / (pressureAmbientAtMaxAlt * 1000);
-
   textAlign(LEFT, CENTER);
   textSize(14);
 }}
 
 function draw() {{
-  background(173, 216, 230);
+  background(200, 230, 255); // 대기 배경색
 
-  let groundY = height - 50;
-  let airParcelX = width / 2;
+  let groundY = height - 60;
+  let parcelX = width / 2;
 
-  let mouseYConstrained = constrain(mouseY, 50, groundY - 50);
-  currentAltitude = map(mouseYConstrained, groundY - 50, 50, minAltitude, maxAltitude);
+  // 1. 고도 계산 (마우스 위치)
+  let mouseYConstrained = constrain(mouseY, 60, groundY - 40);
+  currentAlt = map(mouseYConstrained, groundY - 40, 60, minAlt, maxAlt);
 
-  currentTemperatureAmbient = initialTemperatureGround - lapseRate * currentAltitude;
-  currentPressureAmbient = initialPressureGround * pow(1 - (lapseRate * currentAltitude) / initialTemperatureGround, g / (R_specific * lapseRate));
+  // 2. 물리 방정식 적용
+  // 외부 압력 (Barometric Formula)
+  currentT_amb = initialT0 - lapseRate * currentAlt;
+  currentP_amb = initialP0 * pow(1 - (lapseRate * currentAlt) / initialT0, g / (R_specific * lapseRate));
 
-  if (currentAltitude === 0) {{
-    currentTemperatureAirParcel = initialTemperatureGround;
-  }} else {{
-    currentTemperatureAirParcel = initialTemperatureGround * pow(currentPressureAmbient / initialPressureGround, (gamma - 1) / gamma);
-  }}
+  // 단열 변화에 따른 공기 덩어리 온도 (Poisson's Equation)
+  currentT_parcel = initialT0 * pow(currentP_amb / initialP0, (gamma - 1) / gamma);
 
-  currentVolumeAirParcel = airParcelMass * R_specific * currentTemperatureAirParcel / (currentPressureAmbient * 1000);
+  // 이상기체 상태 방정식에 따른 부피 (V = mRT/P)
+  currentV_parcel = (airMass * R_specific * currentT_parcel) / (currentP_amb * 1000);
 
-  let rawRadiusFactor = sqrt(currentVolumeAirParcel / PI);
-  let minRawRadiusFactor = sqrt(minVolumeAtGround / PI);
-  let maxRawRadiusFactor = sqrt(maxVolumeAtAltitude / PI);
+  // 3. 시각화 수치 변환
+  // 부피를 반지름으로 변환 (시각적 과장을 위해 sqrt 사용 및 매핑)
+  let displayRadius = map(sqrt(currentV_parcel), 0.8, 2.5, 30, 150);
   
-  let displayRadius = map(rawRadiusFactor, minRawRadiusFactor, maxRawRadiusFactor, 40, 100);
-  displayRadius = constrain(displayRadius, 40, 120);
+  // 온도에 따른 색상 결정 (250K ~ 320K 매핑)
+  let tempCol = map(currentT_parcel, 220, 320, 0, 1);
+  let parcelColor = lerpColor(color(100, 150, 255), color(255, 100, 100), tempCol);
 
-  fill(255, 255, 255, 180);
-  noStroke();
-  ellipse(airParcelX, mouseYConstrained, displayRadius * 2, displayRadius * 2);
-
-  let externalArrowLength = map(currentPressureAmbient, 0, initialPressureGround * 1.2, 5, 40);
-  let internalArrowConstantLength = 30;
-
-  let numArrows = 8;
-  let arrowAngleStep = TWO_PI / numArrows;
-  let arrowHeadSize = 5;
-
-  push();
-  translate(airParcelX, mouseYConstrained);
-  stroke(50, 50, 50);
+  // 4. 공기 덩어리 그리기
+  fill(parcelColor);
+  stroke(255);
   strokeWeight(2);
+  ellipse(parcelX, mouseYConstrained, displayRadius * 2, displayRadius * 2);
+
+  // 5. 압력 화살표 그리기 (내부 P_in와 외부 P_out의 평형 상태)
+  // 압력이 낮아질수록 화살표 길이를 짧게 표현
+  let arrowLen = map(currentP_amb, 20, 120, 10, 50);
+  let numArrows = 10;
+  let arrowHead = 6;
 
   for (let i = 0; i < numArrows; i++) {{
-    let angle = i * arrowAngleStep;
-
-    let externalStartX = (displayRadius + externalArrowLength) * cos(angle);
-    let externalStartY = (displayRadius + externalArrowLength) * sin(angle);
-    let externalEndX = displayRadius * cos(angle);
-    let externalEndY = displayRadius * sin(angle);
-    line(externalStartX, externalStartY, externalEndX, externalEndY);
-
-    push();
-    translate(externalEndX, externalEndY);
-    rotate(angle + PI);
-    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
-    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
-    pop();
-
-    let internalStartX = (displayRadius - internalArrowConstantLength) * cos(angle);
-    let internalStartY = (displayRadius - internalArrowConstantLength) * sin(angle);
-    let internalEndX = displayRadius * cos(angle);
-    let internalEndY = displayRadius * sin(angle);
-    line(internalStartX, internalStartY, internalEndX, internalEndY);
-
-    push();
-    translate(internalEndX, internalEndY);
-    rotate(angle);
-    line(0, 0, -arrowHeadSize, -arrowHeadSize * 0.6);
-    line(0, 0, -arrowHeadSize, arrowHeadSize * 0.6);
-    pop();
+    let angle = TWO_PI / numArrows * i;
+    
+    // 외부 압력 화살표 (공기를 누름)
+    let x1 = parcelX + (displayRadius + arrowLen + 5) * cos(angle);
+    let y1 = mouseYConstrained + (displayRadius + arrowLen + 5) * sin(angle);
+    let x2 = parcelX + (displayRadius + 5) * cos(angle);
+    let y2 = mouseYConstrained + (displayRadius + 5) * sin(angle);
+    stroke(50, 50, 200); // 파란색: 외부 압력
+    line(x1, y1, x2, y2);
+    
+    // 내부 압력 화살표 (공기가 밀어냄)
+    let ix1 = parcelX + (displayRadius - arrowLen - 5) * cos(angle);
+    let iy1 = mouseYConstrained + (displayRadius - arrowLen - 5) * sin(angle);
+    let ix2 = parcelX + (displayRadius - 5) * cos(angle);
+    let iy2 = mouseYConstrained + (displayRadius - 5) * sin(angle);
+    stroke(200, 50, 50); // 빨간색: 내부 압력
+    line(ix1, iy1, ix2, iy2);
   }}
-  pop();
 
-  fill(0);
-  noStroke();
-  text("Altitude: " + nf(currentAltitude, 0, 0) + " m", 30, 40);
-  text("Ambient Pressure: " + nf(currentPressureAmbient * 10, 0, 1) + " hPa", 30, 65);
-  text("Air Parcel Volume: " + nf(currentVolumeAirParcel, 0, 2) + " m³", 30, 90);
-  text("Air Parcel Temp: " + nf(currentTemperatureAirParcel - 273.15, 0, 1) + " °C", 30, 115);
-  text("마우스를 위아래로 움직여 고도를 조절하세요.", 30, 145);
+  // 6. 데이터 출력
+  drawUI(currentAlt, currentP_amb, currentV_parcel, currentT_parcel);
 
-  stroke(0);
-  strokeWeight(3);
+  // 지표면 표현
+  stroke(100);
+  strokeWeight(4);
   line(0, groundY, width, groundY);
   noStroke();
-  fill(0);
-  text("Ground Level", width - 120, groundY - 15);
+  fill(50);
+  text("GROUND LEVEL (P0 = " + initialP0 + " kPa)", width - 200, groundY + 25);
+}}
+
+function drawUI(alt, press, vol, temp) {{
+  fill(0, 150);
+  rect(10, 10, 280, 150, 10);
+  fill(255);
+  noStroke();
+  text("현재 고도: " + nf(alt, 0, 0) + " m", 25, 35);
+  text("주변 기압 (P_out): " + nf(press, 0, 2) + " kPa", 25, 60);
+  text("내부 기압 (P_in): " + nf(press, 0, 2) + " kPa (평형)", 25, 85);
+  text("공기 부피 (V): " + nf(vol, 0, 2) + " m³", 25, 110);
+  text("공기 온도 (T): " + nf(temp - 273.15, 0, 1) + " °C", 25, 135);
+  
+  fill(50);
+  text("💡 마우스를 위로 움직이면 공기가 상승하며 단열 팽창합니다.", 25, height - 30);
 }}
 
 function windowResized() {{
@@ -163,11 +141,12 @@ function windowResized() {{
 """
 
 # Streamlit 화면에 HTML/JS 렌더링
-components.html(p5_code, height=600)
+components.html(p5_code, height=700)
 
-st.markdown("""
-### 💡 사용 방법
-1. 왼쪽 사이드바의 **슬라이더**를 조절하여 물리 환경(단열 지수, 기온 등)을 설정합니다.
-2. 메인 화면의 하늘색 영역에서 **마우스를 위아래로 움직이면** 공기 덩어리의 고도가 실시간으로 변합니다.
-3. 고도에 따른 공기 덩어리의 부피 팽창과 압력 화살표의 변화를 관찰하세요.
+# 하단 가이드 추가
+st.info("""
+**물리적 관전 포인트:**
+- **단열 지수($\gamma$):** 이 값을 높이면 상승할 때 온도가 더 급격히 떨어지며, 부피 팽창 속도가 약간 둔화됩니다.
+- **기온 감률:** 감률을 높이면 고도에 따른 외부 기압이 더 빨리 낮아져 공기 덩어리가 훨씬 더 크게 팽창하는 것을 볼 수 있습니다.
+- **색상 변화:** 공기 덩어리가 상승하면서 에너지를 소모(일)하여 온도가 파랗게 변하는 '단열 냉각'을 확인하세요.
 """)
